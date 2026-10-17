@@ -44,7 +44,7 @@ function aggiornaStatistiche() {
   }
   payload.data.forEach(item => {
     const date = String(item.timestamp || '').slice(0, 10);
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) throw new Error('Data non valida: ' + date);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Data non valida: ' + date);
     const visitors = Number(item.visitors), views = Number(item.pageviews);
     if (!Number.isFinite(visitors) || !Number.isFinite(views)) throw new Error('Contatori Vercel non validi');
     const row = dates.get(date) || sheet.getLastRow() + 1;
