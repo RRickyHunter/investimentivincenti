@@ -23,7 +23,7 @@ jobs:
           node - <<'JS'
           const fs=require('fs'),path=require('path');
           const out=[];
-          function walk(p){for(const e of fs.readdirSync(p,{withFileTypes:true})){const f=path.join(p,e.name);if(e.isDirectory())walk(f);else if(/\.(js|ts|md)$/.test(f)){const s=fs.readFileSync(f,'utf8');for(const key of ['set_member_access','set-member-access','setMemberAccess']){let x=s.indexOf(key),i=0;while(x>=0&&i++<5){out.push('FILE '+f+' KEY '+key+'\n'+s.slice(Math.max(0,x-500),x+950)+'\n---');x=s.indexOf(key,x+key.length)}}}}}
+          function walk(p){for(const e of fs.readdirSync(p,{withFileTypes:true})){const f=path.join(p,e.name);if(e.isDirectory())walk(f);else if(/\.(js|ts|md)$/.test(f)){const s=fs.readFileSync(f,'utf8');for(const key of ['coursesprout_add_member','coursesprout_list_members','coursesprout_get_member','function createClient','/member/update-access','/member/add','/member/list','/member/get']){let x=s.indexOf(key),i=0;while(x>=0&&i++<5){out.push('FILE '+f+' KEY '+key+'\n'+s.slice(Math.max(0,x-500),x+950)+'\n---');x=s.indexOf(key,x+key.length)}}}}}
           walk('package');
           fs.writeFileSync(process.env.GITHUB_WORKSPACE+'/automazioni/coursesprout-route-research.txt',out.join('\n').slice(0,50000)||'No source occurrences found');
           JS
