@@ -1,6 +1,7 @@
-// Stripe webhook verification. Safe staging: no enrolment or outbound email yet.
+// Signed Stripe test webhook: grants verified course access to the single approved test Customer.
 // Requires STRIPE_TEST_WEBHOOK_SECRET configured on Vercel and a durable fulfillment store before production.
 import crypto from 'node:crypto';
+import {grantFrattali} from './lib/coursesprout-frattali.js';
 export const config = { api: { bodyParser: false } };
 const okTypes = new Set(['checkout.session.completed','checkout.session.async_payment_succeeded','checkout.session.async_payment_failed']);
 async function rawBody(req) {const chunks=[];for await (const chunk of req) chunks.push(typeof chunk==='string'?Buffer.from(chunk):chunk);return Buffer.concat(chunks);}
@@ -53,37 +54,9 @@ export default async function handler(req,res){
     }
     const names=(customer.name||checkout.customer_details?.name||'').trim().split(/\s+/).filter(Boolean);
     if(names.length<2)throw new Error('Buyer first and last name not available');
-    // Legacy Selen skill: GET /api/ai/get-members; POST /api/ai/add-user with pricing_option_id.
-    const base='https://api.coursesprout.com/api/ai/';
-    const headers={'X-API-KEY':apiKey,Accept:'application/json','Content-Type':'application/json'};
-    const url=new URL(base+'get-members');
-    url.searchParams.set('search',email);url.searchParams.set('type','course');
-    url.searchParams.set('pricing_option_id','1222');
-    const listResponse=await fetch(url,{headers});
-    if(!listResponse.ok)throw new Error('CourseSprout member lookup failed: '+listResponse.status);
-    const roster=await listResponse.json();
-    if(roster.status===false)throw new Error('CourseSprout member lookup rejected');
-    const items=Array.isArray(roster.data?.data)?roster.data.data:Array.isArray(roster.items)?roster.items:Array.isArray(roster.data)?roster.data:[];
-    const hasAccess=items.some(item=>(item.email||item.user?.email||'').toLowerCase()===email);
-    if(hasAccess)return res.status(200).json({received:true,alreadyEnrolled:true});
-    // Add-user is UPSERT according to the archived CourseSprout API skill.
-    // Never email a password or invoke a bulk reminder from this webhook.
-    const enrolled=await fetch(base+'add-user',{method:'POST',headers,body:JSON.stringify({
-      first_name:names[0],last_name:names.slice(1).join(' '),email,pricing_option_id:1222,
-      password:crypto.randomBytes(24).toString('base64url')
-    })});
-    const result=await enrolled.json().catch(()=>null);
-    if(!enrolled.ok || result?.status===false)throw new Error('CourseSprout enrollment failed: '+enrolled.status);
-    // Do not infer enrollment from an add-user success: the API can create a member without granting the course.
-    const verifyResponse=await fetch(url,{headers});
-    if(!verifyResponse.ok)throw new Error('CourseSprout post-enrollment verification failed');
-    const verified=await verifyResponse.json();
-    const verifiedItems=Array.isArray(verified.data?.data)?verified.data.data:Array.isArray(verified.items)?verified.items:Array.isArray(verified.data)?verified.data:[];
-    if(!verifiedItems.some(item=>(item.email||item.user?.email||'').toLowerCase()===email)) {
-      throw new Error('CourseSprout member exists but course access was not assigned');
-    }
-    console.info('CourseSprout test course grant verified',session.id);
-    return res.status(200).json({received:true,enrolled:true});
+    const outcome=await grantFrattali({email,firstName:names[0],lastName:names.slice(1).join(' '),key:apiKey});
+    console.info('CourseSprout verified',session.id, outcome.alreadyEnrolled?'already-enrolled':'new-grant');
+    return res.status(200).json({received:true,...outcome});
   }catch(error){
     console.error('CourseSprout test fulfillment failed:',error.message);
     return res.status(503).json({error:'Test enrollment failed; retry later'});
