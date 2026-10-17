@@ -1,0 +1,165 @@
+FILE package/dist/server.js KEY set_member_access
+ email address. This changes the address they log in with \u2014 if they are not told, they lose access.",
+      inputSchema: { id: memberId(), email: z13.string().email().describe("The new address.") },
+      action: "change the address a member logs in with",
+      confirmSchema: z13.literal(true).describe("Must be true. The member cannot log in with their old address afterwards.")
+    },
+    (args) => client.post("/member/update-email", args)
+  );
+  guardedTool(
+    server,
+    "coursesprout_set_member_access",
+    {
+      title: "Set what a member can access",
+      description: "REPLACES a member's entire access \u2014 courses, pods and pricing options. Anything you leave out is revoked. Read the member first with coursesprout_get_member and send the full set you want them to keep, or you will silently remove access someone paid for.",
+      inputSchema: { id: memberId(), ...accessFields },
+      action: "replace a member's access, revoking anything omitted",
+      confirmSchema: z13.literal(true).describe("Must be true. Omitted courses, pods and options are revoked.")
+    },
+    (args) => client.post("/member/update-access", args)
+  );
+  tool(
+    server,
+    "coursesprout_archive_member",
+    {
+      title: "Archive a member",
+      description: "Archives a member, removing them from the active roster while keeping their record. The reversible alternative to deleting.",
+      inputSchema: { id: memberId() }
+    },
+    (
+---
+FILE package/dist/server.js KEY set_member_access
+string().describe("Their email address."),
+        what: z19.string().describe("What they should get access to.")
+      }
+    },
+    ({ email, what }) => ({
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: [
+              `Give ${email} access to ${what}.`,
+              "",
+              "Check whether they already exist first. If they do, read their current access",
+              "and add to it rather than replacing it \u2014 set_member_access revokes anything",
+              "omitted. Tell me which pricing option you are using and that enrolling sends",
+              "them a welcome email, then wait for my go-ahead."
+            ].join("\n")
+          }
+        }
+      ]
+    })
+  );
+  server.registerPrompt(
+    "review_comments",
+    {
+      title: "Work the comment queue",
+      description: "Triage moderation and surface comments still waiting on a reply.",
+      argsSchema: {
+        course: z19.string().optional().describe("Limit to one course, by name.")
+      }
+    },
+    ({ course }) => ({
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: [
+              `Show me what needs attention in my comments${course ? ` for "${course}"` : ""}.`,
+              "",
+              "Check the moderation queue and anything still needing a reply. Summarise what",
+              "you find and propose re
+---
+FILE package/dist/server.js KEY set_member_access
+. \`coursesprout_reorder_lessons\` to fix ordering \u2014 send every id in order.
+
+## Enrol someone manually
+1. \`coursesprout_list_pricing_options\` \u2192 the option covering what they should get.
+2. \`coursesprout_get_member\` to check whether they already exist.
+3. \`coursesprout_add_member\` with \`pricing_options: [id]\`. This creates a
+   login and emails them.
+
+## Change what an existing member can access
+1. \`coursesprout_get_member\` \u2014 read their CURRENT access.
+2. \`coursesprout_set_member_access\` with the FULL set you want them to end up
+   with. Anything omitted is revoked. This is the single easiest way to
+   accidentally take away something a member paid for.
+
+## Run a discount
+1. \`coursesprout_save_coupon\`.
+2. \`coursesprout_get_order_form\` \u2192 order form id.
+3. \`coursesprout_set_order_form_coupon\`.
+4. Optionally \`coursesprout_save_scarcity_settings\` to add a countdown.
+
+## Sell on instalments
+1. \`coursesprout_save_payment_plan\` \u2014 type \`payment_plan\` with
+   \`no_of_payment\`, or \`subscription\` for open-ended.
+2. \`coursesprout_save_pricing_option\` with that \`payment_plan_id\`.
+
+## Message members
+1. \`coursesprout_get_announcement_audience\` \u2014 how many people this reaches.
+2. \`coursesprout_preview_message\` \u2014 render the merge tags.
+3. \`coursesprout_announce\` or \`coursesprout_broadcast_to_course\`.
+Tell the user the audience size before sending.
+
+## Work the comment qu
+---
+FILE package/dist/server.js KEY set_member_access
+r_access_email\` \u2014 one member.
+- \`coursesprout_reset_member_password\` \u2014 new password, emailed.
+- \`coursesprout_send_reminder_email\` \u2014 BULK: everyone on a pricing option.
+- \`coursesprout_announce\` / \`coursesprout_broadcast_to_course\` \u2014 BULK.
+
+Before any bulk send, establish the audience size
+(\`coursesprout_list_pricing_option_members\`,
+\`coursesprout_get_announcement_audience\`) and tell the user the number.
+
+## Changes what someone already paid for
+- \`coursesprout_set_member_access\` \u2014 REPLACES access; omissions are revoked.
+- \`coursesprout_change_member_email\` \u2014 changes their login address.
+- \`coursesprout_suspend_member\` \u2014 cuts off access or commenting.
+- \`coursesprout_publish_order_form\` \u2014 makes a page that takes real payments
+  reachable, or unreachable.
+
+## Destroys data with no undo
+Every \`coursesprout_delete_*\` tool. The worst are:
+- \`coursesprout_delete_all_members\` \u2014 empties the entire roster.
+- \`coursesprout_delete_course\` \u2014 takes lessons, goals, pricing and order forms.
+- \`coursesprout_delete_pricing_option\` \u2014 takes the order form and frees its slug.
+
+## Reversible alternatives \u2014 prefer these
+| Instead of | Use |
+| --- | --- |
+| delete a course | \`coursesprout_set_course_status\` (unpublish) |
+| delete a pricing option | \`coursesprout_set_pricing_option_status\` |
+| delete a member | \`coursesprout_archive_member\` |
+| delete a co
+---
+FILE package/dist/server.js KEY set_member_access
+ning requests into sequences
+
+| They ask for | Do this |
+| --- | --- |
+| "how much am I making", "how's it going" | \`get_dashboard\`, then explain with courses and pricing |
+| "sell my course", "put it up for sale" | find the pricing option (creating a course seeds one), set the price, then the order form |
+| "give X access", "add someone" | \`get_member\` to check they exist, then \`add_member\` with a pricing option |
+| "take away access", "cancel someone" | read current access first, then \`set_member_access\` or \`archive_member\` |
+| "run a sale", "20% off" | \`save_coupon\`, then attach to the order form |
+| "email everyone who bought X" | find the pricing option, list its members, confirm the count, then send |
+| "what needs my attention" | moderation queue plus comments needing a reply |
+| "why can't they see it", "it's locked", "they can't access X" | their access, then the pricing option's course grants and chapter limits |
+| "is anything half-finished" | courses with no pricing option, or unpublished order forms |
+
+## Reading intent, not keywords
+
+**Vague requests are usually answerable.** "Set up my membership site" is a pod
+plus courses plus a pricing option plus an order form. Do the parts you can and
+report what you did; ask only about the genuinely undecidable, like the price.
+
+**"Show me", "what", "how many", "which" are read-only.** Never write for these.
+
+**"Everyone", "all", "bulk" means check the size fir
+---
