@@ -74,7 +74,15 @@ export default async function handler(req,res){
     })});
     const result=await enrolled.json().catch(()=>null);
     if(!enrolled.ok || result?.status===false)throw new Error('CourseSprout enrollment failed: '+enrolled.status);
-    console.info('CourseSprout test grant succeeded',session.id);
+    // Do not infer enrollment from an add-user success: the API can create a member without granting the course.
+    const verifyResponse=await fetch(url,{headers});
+    if(!verifyResponse.ok)throw new Error('CourseSprout post-enrollment verification failed');
+    const verified=await verifyResponse.json();
+    const verifiedItems=Array.isArray(verified.data?.data)?verified.data.data:Array.isArray(verified.items)?verified.items:Array.isArray(verified.data)?verified.data:[];
+    if(!verifiedItems.some(item=>(item.email||item.user?.email||'').toLowerCase()===email)) {
+      throw new Error('CourseSprout member exists but course access was not assigned');
+    }
+    console.info('CourseSprout test course grant verified',session.id);
     return res.status(200).json({received:true,enrolled:true});
   }catch(error){
     console.error('CourseSprout test fulfillment failed:',error.message);
