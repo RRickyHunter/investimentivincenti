@@ -28,9 +28,9 @@ export default async function handler(req,res){
   if(!paid)return res.status(200).json({received:true,pending:true});
   // CourseSprout is a live account even when Stripe is in test mode.
   // Only the explicitly allowed test address can ever be enrolled here.
-  const allowedEmail = (process.env.COURSESPROUT_TEST_EMAIL || '').trim().toLowerCase();
+  const allowedCustomerId = 'cus_VSY4i3mC8ZrV2d'; // Exact existing paid TEST Customer; never a live Stripe Customer.
   const apiKey = process.env.COURSESPROUT_API_KEY;
-  if (!apiKey || !allowedEmail || !process.env.STRIPE_TEST_SECRET_KEY?.startsWith('sk_test_')) {
+  if (!apiKey || !process.env.STRIPE_TEST_SECRET_KEY?.startsWith('sk_test_')) {
     return res.status(503).json({error:'Test fulfillment not yet configured'});
   }
   try {
@@ -47,7 +47,7 @@ export default async function handler(req,res){
       return res.status(200).json({received:true,ignored:true});
     }
     const email=(customer.email||checkout.customer_details?.email||'').trim().toLowerCase();
-    if(email!==allowedEmail) {
+    if(customer.id!==allowedCustomerId) {
       console.error('Paid test session outside CourseSprout allowlist',session.id);
       return res.status(503).json({error:'Test buyer not allowed for CourseSprout enrollment'});
     }
