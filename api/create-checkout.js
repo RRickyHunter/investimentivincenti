@@ -27,7 +27,7 @@ export default async function handler(req, res) {
     let customer = lookup.data?.length === 1 ? lookup.data[0] : null;
     if(!customer) customer = await stripe('customers',key,{email:safeEmail,name:safeName,'metadata[event_key]':'frattali_2026_10'});
     const data = {
-      mode:'payment',customer:customer.id,
+      mode:'payment',customer:customer.id,locale:'it',
       'line_items[0][price]':PRICE_ID,'line_items[0][quantity]':'1',
       'payment_method_types[0]':'card',
       success_url:DOMAIN+'/tyfrat/?session_id={CHECKOUT_SESSION_ID}',
