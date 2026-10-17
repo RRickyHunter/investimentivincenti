@@ -1,279 +1,50 @@
-FILE package/README.md KEY COURSESPROUT_BASE_URL
-ks. Point it at `npx -y coursesprout-mcp` with
-`COURSESPROUT_API_KEY` in its environment.
-
-## Configuration
-
-| Variable                  | Required | Default                        | Description                                                                                                           |
-| ------------------------- | -------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| `COURSESPROUT_BASE_URL`   | no       | `https://api.coursesprout.com` | Only needed for a local or staging backend. Origin only — a trailing slash or `/api` is stripped for you.             |
-| `COURSESPROUT_API_KEY`    | yes      | —                              | Your `api_key`, sent as `X-API-KEY` on every request.                                                                 |
-| `COURSESPROUT_TIMEOUT_MS` | no       | `30000`                        | Per-request timeout in milliseconds, so a slow backend can't stall the assistant. Raise it if large exports time out. |
-
-The API key is the only thing you have to supply. Everything else defaults to production.
-
-Missing or invalid configuration fails at startup with a message on stderr and a non-zero exit,
-rather than hanging — an assistant-launched subprocess has no terminal to prompt in.
-
-To point at a local backend or a staging host, add the override:
-
-```bash
-claude mcp add coursesp
----
-FILE package/README.md KEY COURSESPROUT_BASE_URL
-timeout in milliseconds, so a slow backend can't stall the assistant. Raise it if large exports time out. |
-
-The API key is the only thing you have to supply. Everything else defaults to production.
-
-Missing or invalid configuration fails at startup with a message on stderr and a non-zero exit,
-rather than hanging — an assistant-launched subprocess has no terminal to prompt in.
-
-To point at a local backend or a staging host, add the override:
-
-```bash
-claude mcp add coursesprout-local \
-  --env COURSESPROUT_BASE_URL=http://127.0.0.1:8000 \
-  --env COURSESPROUT_API_KEY=your-key-here \
-  -- npx -y coursesprout-mcp
-```
-
-### About your API key
-
-The key identifies your creator account. It is **not scoped, not read-only, and not revocable
-independently of your account**: anything you can do in the admin UI, an assistant holding this key
-can do. Treat it as a password.
-
-- Store it in your MCP client's config, never in a repository.
-- Rotate it if it is ever pasted into a chat, a ticket, or a shared log.
-- The server strips credentials out of API responses before the assistant sees them, so your key
-  cannot leak back through a tool result — but that does not protect the copy in your config.
-
-## Verifying the connection
-
-```bash
-claude mcp list
-# coursesprout: npx -y coursesprout-mcp - ✔ Connected
-```
-
-Then ask your assistant:
-
-```
-Who am I logged in as?
-What courses do I have?
-```
-
-The first confirms authentication; the second confir
----
-FILE package/README.md KEY COURSESPROUT_BASE_URL
-ame is ambiguous. It is deliberately not
-an error — it carries the question to ask you and the candidates to choose from.
-
-## Troubleshooting
-
-| Symptom                           | Cause and fix                                                                                           |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Every tool returns "Unauthorized" | Check the API key. If you set `COURSESPROUT_BASE_URL`, check it points at the right host                |
-| Every tool returns "Forbidden"    | The key resolved to an account without creator or admin access                                          |
-| The server exits immediately      | Missing configuration. It prints the missing variable names to stderr — check your client's server logs |
-| Calls time out                    | Raise `COURSESPROUT_TIMEOUT_MS`. The 30s default is generous except for large exports                   |
-| It picked the wrong record        | Give the exact name, or answer its clarifying question with the id it offered                           |
-| It seems overly cautious          | Deliberate for deletes and bulk email. Confirm and it proceeds                                          |
-| It seems lost                     | Ask it to _"read coursesprout://guide/workflows first, then …"_                                         |
-| A field c
----
-FILE package/dist/server.js KEY baseUrl
-#!/usr/bin/env node
-
-// src/server.ts
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-
-// src/config.ts
-var ConfigError = class extends Error {
-};
-var DEFAULT_TIMEOUT_MS = 3e4;
-var DEFAULT_BASE_URL = "https://api.coursesprout.com";
-function loadConfig(env = process.env) {
-  const apiKey = env.COURSESPROUT_API_KEY?.trim();
-  const baseUrl = env.COURSESPROUT_BASE_URL?.trim() || DEFAULT_BASE_URL;
-  if (!apiKey) {
-    throw new ConfigError(
-      "coursesprout-mcp: missing required environment variable COURSESPROUT_API_KEY. See the README for how to configure your MCP client."
-    );
-  }
-  return {
-    apiKey,
-    baseUrl: normaliseBaseUrl(baseUrl),
-    timeoutMs: parseTimeout(env.COURSESPROUT_TIMEOUT_MS)
-  };
-}
-function normaliseBaseUrl(raw) {
-  const trimmed = raw.replace(/\/+$/, "");
-  if (!/^https?:\/\//i.test(trimmed)) {
-    throw new ConfigError(
-      `coursesprout-mcp: COURSESPROUT_BASE_URL must start with http:// or https://, got "${raw}".`
-    );
-  }
-  return trimmed.replace(/\/api$/i, "");
-}
-function parseTimeout(raw) {
-  if (!raw?.trim()) return DEFAULT_TIMEOUT_MS;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new ConfigError(
-      `coursesprout-mcp: COURSESPROUT_TIMEOUT_MS must be a positive number of millisec
----
-FILE package/dist/server.js KEY baseUrl
-r = class extends Error {
-};
-var DEFAULT_TIMEOUT_MS = 3e4;
-var DEFAULT_BASE_URL = "https://api.coursesprout.com";
-function loadConfig(env = process.env) {
-  const apiKey = env.COURSESPROUT_API_KEY?.trim();
-  const baseUrl = env.COURSESPROUT_BASE_URL?.trim() || DEFAULT_BASE_URL;
-  if (!apiKey) {
-    throw new ConfigError(
-      "coursesprout-mcp: missing required environment variable COURSESPROUT_API_KEY. See the README for how to configure your MCP client."
-    );
-  }
-  return {
-    apiKey,
-    baseUrl: normaliseBaseUrl(baseUrl),
-    timeoutMs: parseTimeout(env.COURSESPROUT_TIMEOUT_MS)
-  };
-}
-function normaliseBaseUrl(raw) {
-  const trimmed = raw.replace(/\/+$/, "");
-  if (!/^https?:\/\//i.test(trimmed)) {
-    throw new ConfigError(
-      `coursesprout-mcp: COURSESPROUT_BASE_URL must start with http:// or https://, got "${raw}".`
-    );
-  }
-  return trimmed.replace(/\/api$/i, "");
-}
-function parseTimeout(raw) {
-  if (!raw?.trim()) return DEFAULT_TIMEOUT_MS;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new ConfigError(
-      `coursesprout-mcp: COURSESPROUT_TIMEOUT_MS must be a positive number of milliseconds, got "${raw}".`
-    );
-  }
-  return parsed;
-}
-
-// src/clients/course-sprout-client.ts
-import { readFile } from "fs/promises";
-import { basename } from "path";
-
-// src/clients/redact.ts
-var SECRET_KEYS = /* @__PURE__ */ new Set([
-  "api_key",
-  "api_value",
-  "password",
-  "visible
----
-FILE package/dist/server.js KEY baseUrl
-};
-var DEFAULT_TIMEOUT_MS = 3e4;
-var DEFAULT_BASE_URL = "https://api.coursesprout.com";
-function loadConfig(env = process.env) {
-  const apiKey = env.COURSESPROUT_API_KEY?.trim();
-  const baseUrl = env.COURSESPROUT_BASE_URL?.trim() || DEFAULT_BASE_URL;
-  if (!apiKey) {
-    throw new ConfigError(
-      "coursesprout-mcp: missing required environment variable COURSESPROUT_API_KEY. See the README for how to configure your MCP client."
-    );
-  }
-  return {
-    apiKey,
-    baseUrl: normaliseBaseUrl(baseUrl),
-    timeoutMs: parseTimeout(env.COURSESPROUT_TIMEOUT_MS)
-  };
-}
-function normaliseBaseUrl(raw) {
-  const trimmed = raw.replace(/\/+$/, "");
-  if (!/^https?:\/\//i.test(trimmed)) {
-    throw new ConfigError(
-      `coursesprout-mcp: COURSESPROUT_BASE_URL must start with http:// or https://, got "${raw}".`
-    );
-  }
-  return trimmed.replace(/\/api$/i, "");
-}
-function parseTimeout(raw) {
-  if (!raw?.trim()) return DEFAULT_TIMEOUT_MS;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new ConfigError(
-      `coursesprout-mcp: COURSESPROUT_TIMEOUT_MS must be a positive number of milliseconds, got "${raw}".`
-    );
-  }
-  return parsed;
-}
-
-// src/clients/course-sprout-client.ts
-import { readFile } from "fs/promises";
-import { basename } from "path";
-
-// src/clients/redact.ts
-var SECRET_KEYS = /* @__PURE__ */ new Set([
-  "api_key",
-  "api_value",
-  "password",
-  "visible_password",
-  "default_pas
----
-FILE package/dist/server.js KEY baseUrl
-urseSproutApiError = class extends Error {
-  constructor(message, status, errors) {
-    super(message);
-    this.status = status;
-    this.errors = errors;
-    this.name = "CourseSproutApiError";
-  }
-  status;
-  errors;
-};
-var CourseSproutTimeoutError = class extends Error {
-  constructor(timeoutMs) {
-    super(`Request timed out after ${timeoutMs}ms.`);
-    this.timeoutMs = timeoutMs;
-    this.name = "CourseSproutTimeoutError";
-  }
-  timeoutMs;
-};
-var CourseSproutClient = class {
-  constructor(baseUrl, apiKey, timeoutMs = 3e4, fetchImpl = globalThis.fetch) {
-    this.baseUrl = baseUrl;
-    this.apiKey = apiKey;
-    this.timeoutMs = timeoutMs;
-    this.fetchImpl = fetchImpl;
-  }
-  baseUrl;
-  apiKey;
-  timeoutMs;
-  fetchImpl;
-  get(path, query = {}) {
-    return this.request("GET", `${path}${buildQuery(query)}`);
-  }
-  post(path, body = {}) {
-    return this.request("POST", path, body);
-  }
-  /**
-   * Multipart POST, for the endpoints that take a real file — CSV imports and
-   * image uploads. Files are named by local path: this server runs on the
-   * user's own machine, so reading one is the only way an assistant can act on
-   * "import the CSV on my desktop".
-   *
-   * Content-Type is deliberately not set. fetch derives it from the FormData
-   * along with the multipart boundary, and setting it by hand produces a body
-   * the backend cannot parse.
+FILE package/dist/server.js KEY async request(
+ipart only
+   * when a file is actually present.
    */
-  async postForm(path, fields = {}, files = {}) {
-    const form = new 
+  postMaybeForm(path, fields, files = {}) {
+    const present = Object.fromEntries(
+      Object.entries(files).filter(([, value]) => typeof value === "string" && value.length > 0)
+    );
+    return Object.keys(present).length > 0 ? this.postForm(path, fields, present) : this.post(path, fields);
+  }
+  /** Only the moderation routes use DELETE; everything else is GET or POST. */
+  delete(path) {
+    return this.request("DELETE", path);
+  }
+  async request(method, path, body, form) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    let response;
+    try {
+      response = await this.fetchImpl(`${this.baseUrl}/api${path}`, {
+        method,
+        headers: {
+          "X-API-KEY": this.apiKey,
+          Accept: "application/json",
+          ...body ? { "Content-Type": "application/json" } : {}
+        },
+        body: form ?? (body ? JSON.stringify(stripUndefined(body)) : void 0),
+        signal: controller.signal
+      });
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        throw new CourseSproutTimeoutError(this.timeoutMs);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+    return this.unwrap(response);
+  }
+  async unwrap(response) {
+    const text2 = await response.text();
+    let envelope;
+    try {
+      envelope = text2 ? JSON.parse
 ---
-FILE package/dist/server.js KEY baseUrl
-rrors) {
+FILE package/dist/server.js KEY this.baseUrl
+us, errors) {
     super(message);
     this.status = status;
     this.errors = errors;
@@ -319,103 +90,88 @@ var CourseSproutClient = class {
    */
   async postForm(path, fields = {}, files = {}) {
     const form = new FormData();
-    for (const [key, value] of Object.entries(stripUndefined(fi
+    for (const [key, value] of Object.entries(stripUndefin
 ---
-FILE package/dist/server.js KEY COURSESPROUT_BASE_URL
-#!/usr/bin/env node
-
-// src/server.ts
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-
-// src/config.ts
-var ConfigError = class extends Error {
-};
-var DEFAULT_TIMEOUT_MS = 3e4;
-var DEFAULT_BASE_URL = "https://api.coursesprout.com";
-function loadConfig(env = process.env) {
-  const apiKey = env.COURSESPROUT_API_KEY?.trim();
-  const baseUrl = env.COURSESPROUT_BASE_URL?.trim() || DEFAULT_BASE_URL;
-  if (!apiKey) {
-    throw new ConfigError(
-      "coursesprout-mcp: missing required environment variable COURSESPROUT_API_KEY. See the README for how to configure your MCP client."
+FILE package/dist/server.js KEY this.baseUrl
+h > 0)
     );
+    return Object.keys(present).length > 0 ? this.postForm(path, fields, present) : this.post(path, fields);
   }
-  return {
-    apiKey,
-    baseUrl: normaliseBaseUrl(baseUrl),
-    timeoutMs: parseTimeout(env.COURSESPROUT_TIMEOUT_MS)
-  };
-}
-function normaliseBaseUrl(raw) {
-  const trimmed = raw.replace(/\/+$/, "");
-  if (!/^https?:\/\//i.test(trimmed)) {
-    throw new ConfigError(
-      `coursesprout-mcp: COURSESPROUT_BASE_URL must start with http:// or https://, got "${raw}".`
-    );
+  /** Only the moderation routes use DELETE; everything else is GET or POST. */
+  delete(path) {
+    return this.request("DELETE", path);
   }
-  return trimmed.replace(/\/api$/i, "");
-}
-function parseTimeout(raw) {
-  if (!raw?.trim()) return DEFAULT_TIMEOUT_MS;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new ConfigError(
-      `coursesprout-mcp: COURSESPROUT_TIMEOUT_MS must be a positive number of milliseconds, got "${r
+  async request(method, path, body, form) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    let response;
+    try {
+      response = await this.fetchImpl(`${this.baseUrl}/api${path}`, {
+        method,
+        headers: {
+          "X-API-KEY": this.apiKey,
+          Accept: "application/json",
+          ...body ? { "Content-Type": "application/json" } : {}
+        },
+        body: form ?? (body ? JSON.stringify(stripUndefined(body)) : void 0),
+        signal: controller.signal
+      });
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        throw new CourseSproutTimeoutError(this.timeoutMs);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+    return this.unwrap(response);
+  }
+  async unwrap(response) {
+    const text2 = await response.text();
+    let envelope;
+    try {
+      envelope = text2 ? JSON.parse(text2) : {};
+    } catch {
+      throw new CourseSproutApiError(
+        `Non-JSON response from CourseSprout (${response.status}): ${text2.slice(0, 200)}`,
+        response.status
+      );
+    }
+    if (envelope.status === fals
 ---
-FILE package/dist/server.js KEY COURSESPROUT_BASE_URL
-_BASE_URL;
-  if (!apiKey) {
-    throw new ConfigError(
-      "coursesprout-mcp: missing required environment variable COURSESPROUT_API_KEY. See the README for how to configure your MCP client."
-    );
-  }
-  return {
-    apiKey,
-    baseUrl: normaliseBaseUrl(baseUrl),
-    timeoutMs: parseTimeout(env.COURSESPROUT_TIMEOUT_MS)
-  };
-}
-function normaliseBaseUrl(raw) {
-  const trimmed = raw.replace(/\/+$/, "");
-  if (!/^https?:\/\//i.test(trimmed)) {
-    throw new ConfigError(
-      `coursesprout-mcp: COURSESPROUT_BASE_URL must start with http:// or https://, got "${raw}".`
-    );
-  }
-  return trimmed.replace(/\/api$/i, "");
-}
-function parseTimeout(raw) {
-  if (!raw?.trim()) return DEFAULT_TIMEOUT_MS;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new ConfigError(
-      `coursesprout-mcp: COURSESPROUT_TIMEOUT_MS must be a positive number of milliseconds, got "${raw}".`
-    );
-  }
-  return parsed;
-}
-
-// src/clients/course-sprout-client.ts
-import { readFile } from "fs/promises";
-import { basename } from "path";
-
-// src/clients/redact.ts
-var SECRET_KEYS = /* @__PURE__ */ new Set([
-  "api_key",
-  "api_value",
-  "password",
-  "visible_password",
-  "default_password",
-  "gc_token",
-  "remember_token",
-  "auth_config",
-  "secret",
-  "client_secret",
-  "access_token",
-  "refresh_token"
-]);
-var REDACTED = "[redacted by coursesprout-mcp]";
-function redactSecrets(value, depth = 0) {
-  if (depth > 12) re
+FILE package/dist/server.js KEY /member/update-access
+\u2014 courses, pods and pricing options. Anything you leave out is revoked. Read the member first with coursesprout_get_member and send the full set you want them to keep, or you will silently remove access someone paid for.",
+      inputSchema: { id: memberId(), ...accessFields },
+      action: "replace a member's access, revoking anything omitted",
+      confirmSchema: z13.literal(true).describe("Must be true. Omitted courses, pods and options are revoked.")
+    },
+    (args) => client.post("/member/update-access", args)
+  );
+  tool(
+    server,
+    "coursesprout_archive_member",
+    {
+      title: "Archive a member",
+      description: "Archives a member, removing them from the active roster while keeping their record. The reversible alternative to deleting.",
+      inputSchema: { id: memberId() }
+    },
+    ({ id }) => client.get(`/member/archive/${id}`)
+  );
+  tool(
+    server,
+    "coursesprout_set_member_admin",
+    {
+      title: "Make a member an admin",
+      description: "Toggles a member's admin flag inside the pod. Admins can moderate community content.",
+      inputSchema: { id: memberId() }
+    },
+    ({ id }) => client.get(`/member/mark-as-admin/${id}`)
+  );
+  guardedTool(
+    server,
+    "coursesprout_reset_member_password",
+    {
+      title: "Reset a member password",
+      description: "Generates a new password for a member and emails it to them. Their current password stops working immediately.",
+      in
 ---
