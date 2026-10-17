@@ -1,80 +1,40 @@
-FILE package/dist/server.js KEY set_member_access
- email address. This changes the address they log in with \u2014 if they are not told, they lose access.",
-      inputSchema: { id: memberId(), email: z13.string().email().describe("The new address.") },
-      action: "change the address a member logs in with",
-      confirmSchema: z13.literal(true).describe("Must be true. The member cannot log in with their old address afterwards.")
-    },
-    (args) => client.post("/member/update-email", args)
-  );
-  guardedTool(
-    server,
-    "coursesprout_set_member_access",
-    {
-      title: "Set what a member can access",
-      description: "REPLACES a member's entire access \u2014 courses, pods and pricing options. Anything you leave out is revoked. Read the member first with coursesprout_get_member and send the full set you want them to keep, or you will silently remove access someone paid for.",
-      inputSchema: { id: memberId(), ...accessFields },
-      action: "replace a member's access, revoking anything omitted",
-      confirmSchema: z13.literal(true).describe("Must be true. Omitted courses, pods and options are revoked.")
-    },
-    (args) => client.post("/member/update-access", args)
+FILE package/dist/server.js KEY coursesprout_add_member
+(args) => client.post("/member/list", args)
   );
   tool(
     server,
-    "coursesprout_archive_member",
+    "coursesprout_get_member",
     {
-      title: "Archive a member",
-      description: "Archives a member, removing them from the active roster while keeping their record. The reversible alternative to deleting.",
-      inputSchema: { id: memberId() }
+      title: "Get member by email",
+      description: "Resolves one member by email, with their courses, pods and pricing options. Scoped to this account \u2014 an email belonging to another creator's roster is not found.",
+      inputSchema: { email: z13.string().email() }
     },
-    (
----
-FILE package/dist/server.js KEY set_member_access
-string().describe("Their email address."),
-        what: z19.string().describe("What they should get access to.")
-      }
-    },
-    ({ email, what }) => ({
-      messages: [
-        {
-          role: "user",
-          content: {
-            type: "text",
-            text: [
-              `Give ${email} access to ${what}.`,
-              "",
-              "Check whether they already exist first. If they do, read their current access",
-              "and add to it rather than replacing it \u2014 set_member_access revokes anything",
-              "omitted. Tell me which pricing option you are using and that enrolling sends",
-              "them a welcome email, then wait for my go-ahead."
-            ].join("\n")
-          }
-        }
-      ]
-    })
+    ({ email }) => client.get(`/member/get/${encodeURIComponent(email)}`)
   );
-  server.registerPrompt(
-    "review_comments",
+  guardedTool(
+    server,
+    "coursesprout_add_member",
     {
-      title: "Work the comment queue",
-      description: "Triage moderation and surface comments still waiting on a reply.",
-      argsSchema: {
-        course: z19.string().optional().describe("Limit to one course, by name.")
-      }
-    },
-    ({ course }) => ({
-      messages: [
-        {
-          role: "user",
-          content: {
-            type: "text",
-            text: [
-              `Show me what needs attention in my comments${course ? ` for "${course}"` : ""}.`,
-              "",
-              "Check the moderation queue and anything still needing a reply. Summarise what",
-              "you find and propose re
+      title: "Add member",
+      description: `Enrols a person and grants them access \u2014 "add someone", "give X access", "sign them up". SIDE EFFECTS: creates a login if the email has none, and sends the configured welcome/access email to a real inbox. A pricing option's default_password overrides any password passed here. An email that already exists gains the new access rather than being duplicated.`,
+      inputSchema: {
+        email: z13.string().email(),
+        first_name: z13.string().min(1).max(255),
+        last_name: z13.string().optional(),
+        phone: z13.string().optional(),
+        password: z13.string().optional().describe("Ignored when the pricing option sets a default password."),
+        gc_tag_id: z13.union([z13.string(), z13.number()]).optional(),
+        ...accessFields
+      },
+      action: "enrol a member, which creates a login and emails them",
+      confirmSchema: z13.lit
 ---
-FILE package/dist/server.js KEY set_member_access
-. \`coursesprout_reorder_lessons\` to fix ordering \u2014 send every id in order.
+FILE package/dist/server.js KEY coursesprout_add_member
+ \u2192 id.
+2. \`coursesprout_list_chapters\` if the course uses chapters.
+3. \`coursesprout_create_chapter\` / \`coursesprout_create_lesson\`.
+4. \`coursesprout_add_video\` then \`coursesprout_attach_lesson_video\` for video.
+5. \`coursesprout_reorder_lessons\` to fix ordering \u2014 send every id in order.
 
 ## Enrol someone manually
 1. \`coursesprout_list_pricing_options\` \u2192 the option covering what they should get.
@@ -100,15 +60,23 @@ FILE package/dist/server.js KEY set_member_access
 2. \`coursesprout_save_pricing_option\` with that \`payment_plan_id\`.
 
 ## Message members
-1. \`coursesprout_get_announcement_audience\` \u2014 how many people this reaches.
-2. \`coursesprout_preview_message\` \u2014 render the merge tags.
-3. \`coursesprout_announce\` or \`coursesprout_broadcast_to_course\`.
-Tell the user the audience size before sending.
-
-## Work the comment qu
+1. \`coursesprout_get_announcement_audience\` \u2014 how many 
 ---
-FILE package/dist/server.js KEY set_member_access
-r_access_email\` \u2014 one member.
+FILE package/dist/server.js KEY coursesprout_add_member
+## Work the comment queue
+1. \`coursesprout_list_moderation_queue\` (triage) or
+   \`coursesprout_list_comments\` with \`needs_reply\` (backlog).
+2. \`coursesprout_reply_to_comment\`, or \`coursesprout_set_comment_status\`
+   with \`hidden\` \u2014 reversible, unlike deleting.
+3. \`coursesprout_resolve_report\` to close the report itself.
+`;
+var SAFETY = `# What actually reaches the real world
+
+This server is not a sandbox. Every call acts on the live account.
+
+## Sends email to real people
+- \`coursesprout_add_member\` \u2014 welcome/access email on enrolment.
+- \`coursesprout_send_member_access_email\` \u2014 one member.
 - \`coursesprout_reset_member_password\` \u2014 new password, emailed.
 - \`coursesprout_send_reminder_email\` \u2014 BULK: everyone on a pricing option.
 - \`coursesprout_announce\` / \`coursesprout_broadcast_to_course\` \u2014 BULK.
@@ -124,42 +92,422 @@ Before any bulk send, establish the audience size
 - \`coursesprout_publish_order_form\` \u2014 makes a page that takes real payments
   reachable, or unreachable.
 
-## Destroys data with no undo
-Every \`coursesprout_delete_*\` tool. The worst are:
-- \`coursesprout_delete_all_members\` \u2014 empties the entire roster.
-- \`coursesprout_delete_course\` \u2014 takes lessons, goals, pricing and order forms.
-- \`coursesprout_delete_pricing_option\` \u2014 takes the order form and frees its slug.
-
-## Reversible alternatives \u2014 prefer these
-| Instead of | Use |
-| --- | --- |
-| delete a course | \`coursesprout_set_course_status\` (unpublish) |
-| delete a pricing option | \`coursesprout_set_pricing_option_status\` |
-| delete a member | \`coursesprout_archive_member\` |
-| delete a co
+## Destroys data with no und
 ---
-FILE package/dist/server.js KEY set_member_access
-ning requests into sequences
+FILE package/dist/server.js KEY coursesprout_list_members
+s.ts
+import { z } from "zod";
+var ids = {
+  course: "Numeric course id. Resolve a title to an id with coursesprout_list_courses.",
+  pod: "Numeric pod (membership) id. Resolve a name with coursesprout_list_pods.",
+  lesson: "Numeric lesson id. From coursesprout_list_lessons.",
+  chapter: "Numeric chapter id. From coursesprout_list_chapters.",
+  pricingOption: "Numeric pricing option id \u2014 the sellable unit. From coursesprout_list_pricing_options.",
+  member: "Numeric member account id. From coursesprout_list_members or coursesprout_get_member.",
+  product: "Numeric product id. From coursesprout_list_products.",
+  collection: "Numeric collection id. From coursesprout_list_collections.",
+  video: "Numeric video-library id. From coursesprout_list_videos.",
+  resource: "Numeric resource id. From coursesprout_list_resources."
+};
+var courseId = () => z.number().int().positive().describe(ids.course);
+var podId = () => z.number().int().positive().describe(ids.pod);
+var lessonId = () => z.number().int().positive().describe(ids.lesson);
+var chapterId = () => z.number().int().positive().describe(ids.chapter);
+var pricingOptionId = () => z.number().int().positive().describe(ids.pricingOption);
+var memberId = () => z.number().int().positive().describe(ids.member);
+var confirmDelete = (what) => z.literal(true).describe(`Must be explicitly set to true. ${what} This cannot be undone.`);
 
-| They ask for | Do this |
-| --- | --- |
-| "how much am I making", "how's it going" | \`get_dashboard\`, then explain with courses and pricing |
-| "sell my course", "put it up for sale" | find the pricing option (creating a course seeds one), set the price, then the order form |
-| "give X access", "add someone" | \`get_member\` to check they exist, then \`add_member\` with a pricing option |
-| "take away access", "cancel someone" | read current access first, then \`set_member_access\` or \`archive_member\` |
-| "run a sale", "20% off" | \`save_coupon\`, then attach to the order form |
-| "email everyone who bought X" | find the pricing option, list its members, confirm the count, then send |
-| "what needs my attention" | moderation queue plus comments needing a reply |
-| "why can't they see it", "it's locked", "they can't access X" | their access, then the pricing option's course grants and chapter limits |
-| "is anything half-finished" | courses with no pricing option, or unpublished order forms |
+// src/tools/account.ts
+function registerAccountToo
+---
+FILE package/dist/server.js KEY coursesprout_list_members
+nt().positive()).optional().describe("Pricing option ids to grant. This is the normal way to give access."),
+    courses: z13.array(z13.number().int().positive()).optional().describe("Course ids to grant directly."),
+    memberships: z13.array(z13.number().int().positive()).optional().describe("Pod ids to grant directly."),
+    extra_course_ids: z13.array(z13.number().int().positive()).optional().describe("Courses granted on top of what the pricing options cover.")
+  };
+  tool(
+    server,
+    "coursesprout_list_members",
+    {
+      title: "List members",
+      description: "The member roster, 10 per page. Returns a Laravel paginator \u2014 the rows are in data.data with page metadata alongside. When you already have an email, coursesprout_get_member is one call instead of paging.",
+      inputSchema: {
+        search: z13.string().optional().describe("Matches first name, last name or email."),
+        type: z13.string().optional().describe('Narrows by enrolment kind, e.g. "course", "pod" or "all".'),
+        pricing_option_id: pricingOptionId().optional().describe("Only members holding this option.")
+      }
+    },
+    (args) => client.post("/member/list", args)
+  );
+  tool(
+    server,
+    "coursesprout_get_member",
+    {
+      title: "Get member by email",
+      description: "Resolves one member by email, with their courses, pods and pricing options. Scoped to this account \u2014 an email belonging to another creator's ros
+---
+FILE package/dist/server.js KEY coursesprout_list_members
+ember, which is reversible.",
+      inputSchema: { id: memberId() },
+      action: "delete a member",
+      confirmSchema: confirmDelete("Removes the member and revokes all their access.")
+    },
+    ({ id }) => client.post("/member/delete", { id }).then(() => ({ deleted: true, member_id: id }))
+  );
+  guardedTool(
+    server,
+    "coursesprout_bulk_delete_members",
+    {
+      title: "Delete several members",
+      description: "Permanently removes every member in the list. Read them back with coursesprout_list_members and confirm the ids with the user before calling \u2014 there is no undo.",
+      inputSchema: {
+        ids: z13.array(z13.number().int().positive()).min(1).describe("Member account ids to delete.")
+      },
+      action: "delete multiple members at once",
+      confirmSchema: confirmDelete("Removes every listed member and revokes their access.")
+    },
+    ({ ids: ids2 }) => client.post("/member/bulk-delete", { ids: ids2 })
+  );
+  guardedTool(
+    server,
+    "coursesprout_delete_all_members",
+    {
+      title: "Delete every member",
+      description: "Removes EVERY member on the account. This is the most destructive call in this server \u2014 it empties the entire roster and revokes everyone's access. Only call it when the user has asked for exactly this, in those terms, and has been told what it does.",
+      action: "delete every member on the account",
+      confirmSchema: z13.literal(true).describe(
+  
+---
+FILE package/dist/server.js KEY coursesprout_get_member
 
-## Reading intent, not keywords
+var ids = {
+  course: "Numeric course id. Resolve a title to an id with coursesprout_list_courses.",
+  pod: "Numeric pod (membership) id. Resolve a name with coursesprout_list_pods.",
+  lesson: "Numeric lesson id. From coursesprout_list_lessons.",
+  chapter: "Numeric chapter id. From coursesprout_list_chapters.",
+  pricingOption: "Numeric pricing option id \u2014 the sellable unit. From coursesprout_list_pricing_options.",
+  member: "Numeric member account id. From coursesprout_list_members or coursesprout_get_member.",
+  product: "Numeric product id. From coursesprout_list_products.",
+  collection: "Numeric collection id. From coursesprout_list_collections.",
+  video: "Numeric video-library id. From coursesprout_list_videos.",
+  resource: "Numeric resource id. From coursesprout_list_resources."
+};
+var courseId = () => z.number().int().positive().describe(ids.course);
+var podId = () => z.number().int().positive().describe(ids.pod);
+var lessonId = () => z.number().int().positive().describe(ids.lesson);
+var chapterId = () => z.number().int().positive().describe(ids.chapter);
+var pricingOptionId = () => z.number().int().positive().describe(ids.pricingOption);
+var memberId = () => z.number().int().positive().describe(ids.member);
+var confirmDelete = (what) => z.literal(true).describe(`Must be explicitly set to true. ${what} This cannot be undone.`);
 
-**Vague requests are usually answerable.** "Set up my membership site" is a pod
-plus courses plus a pricing option plus an order form. Do the parts you can and
-report what you did; ask only about the genuinely undecidable, like the price.
+// src/tools/account.ts
+function registerAccountTools(server, deps) {
+  const { 
+---
+FILE package/dist/server.js KEY coursesprout_get_member
+array(z13.number().int().positive()).optional().describe("Pod ids to grant directly."),
+    extra_course_ids: z13.array(z13.number().int().positive()).optional().describe("Courses granted on top of what the pricing options cover.")
+  };
+  tool(
+    server,
+    "coursesprout_list_members",
+    {
+      title: "List members",
+      description: "The member roster, 10 per page. Returns a Laravel paginator \u2014 the rows are in data.data with page metadata alongside. When you already have an email, coursesprout_get_member is one call instead of paging.",
+      inputSchema: {
+        search: z13.string().optional().describe("Matches first name, last name or email."),
+        type: z13.string().optional().describe('Narrows by enrolment kind, e.g. "course", "pod" or "all".'),
+        pricing_option_id: pricingOptionId().optional().describe("Only members holding this option.")
+      }
+    },
+    (args) => client.post("/member/list", args)
+  );
+  tool(
+    server,
+    "coursesprout_get_member",
+    {
+      title: "Get member by email",
+      description: "Resolves one member by email, with their courses, pods and pricing options. Scoped to this account \u2014 an email belonging to another creator's roster is not found.",
+      inputSchema: { email: z13.string().email() }
+    },
+    ({ email }) => client.get(`/member/get/${encodeURIComponent(email)}`)
+  );
+  guardedTool(
+    server,
+    "coursesprout_add_member",
+    {
+      title: "Add
+---
+FILE package/dist/server.js KEY coursesprout_get_member
+u already have an email, coursesprout_get_member is one call instead of paging.",
+      inputSchema: {
+        search: z13.string().optional().describe("Matches first name, last name or email."),
+        type: z13.string().optional().describe('Narrows by enrolment kind, e.g. "course", "pod" or "all".'),
+        pricing_option_id: pricingOptionId().optional().describe("Only members holding this option.")
+      }
+    },
+    (args) => client.post("/member/list", args)
+  );
+  tool(
+    server,
+    "coursesprout_get_member",
+    {
+      title: "Get member by email",
+      description: "Resolves one member by email, with their courses, pods and pricing options. Scoped to this account \u2014 an email belonging to another creator's roster is not found.",
+      inputSchema: { email: z13.string().email() }
+    },
+    ({ email }) => client.get(`/member/get/${encodeURIComponent(email)}`)
+  );
+  guardedTool(
+    server,
+    "coursesprout_add_member",
+    {
+      title: "Add member",
+      description: `Enrols a person and grants them access \u2014 "add someone", "give X access", "sign them up". SIDE EFFECTS: creates a login if the email has none, and sends the configured welcome/access email to a real inbox. A pricing option's default_password overrides any password passed here. An email that already exists gains the new access rather than being duplicated.`,
+      inputSchema: {
+        email: z13.string().email(),
+        first_name: z13
+---
+FILE package/dist/server.js KEY coursesprout_get_member
+ address a member logs in with",
+      confirmSchema: z13.literal(true).describe("Must be true. The member cannot log in with their old address afterwards.")
+    },
+    (args) => client.post("/member/update-email", args)
+  );
+  guardedTool(
+    server,
+    "coursesprout_set_member_access",
+    {
+      title: "Set what a member can access",
+      description: "REPLACES a member's entire access \u2014 courses, pods and pricing options. Anything you leave out is revoked. Read the member first with coursesprout_get_member and send the full set you want them to keep, or you will silently remove access someone paid for.",
+      inputSchema: { id: memberId(), ...accessFields },
+      action: "replace a member's access, revoking anything omitted",
+      confirmSchema: z13.literal(true).describe("Must be true. Omitted courses, pods and options are revoked.")
+    },
+    (args) => client.post("/member/update-access", args)
+  );
+  tool(
+    server,
+    "coursesprout_archive_member",
+    {
+      title: "Archive a member",
+      description: "Archives a member, removing them from the active roster while keeping their record. The reversible alternative to deleting.",
+      inputSchema: { id: memberId() }
+    },
+    ({ id }) => client.get(`/member/archive/${id}`)
+  );
+  tool(
+    server,
+    "coursesprout_set_member_admin",
+    {
+      title: "Make a member an admin",
+      description: "Toggles a member's admin flag inside the pod. Admins ca
+---
+FILE package/dist/server.js KEY coursesprout_get_member
+# Add content to an existing course
+1. \`coursesprout_list_courses\` \u2192 id.
+2. \`coursesprout_list_chapters\` if the course uses chapters.
+3. \`coursesprout_create_chapter\` / \`coursesprout_create_lesson\`.
+4. \`coursesprout_add_video\` then \`coursesprout_attach_lesson_video\` for video.
+5. \`coursesprout_reorder_lessons\` to fix ordering \u2014 send every id in order.
 
-**"Show me", "what", "how many", "which" are read-only.** Never write for these.
+## Enrol someone manually
+1. \`coursesprout_list_pricing_options\` \u2192 the option covering what they should get.
+2. \`coursesprout_get_member\` to check whether they already exist.
+3. \`coursesprout_add_member\` with \`pricing_options: [id]\`. This creates a
+   login and emails them.
 
-**"Everyone", "all", "bulk" means check the size fir
+## Change what an existing member can access
+1. \`coursesprout_get_member\` \u2014 read their CURRENT access.
+2. \`coursesprout_set_member_access\` with the FULL set you want them to end up
+   with. Anything omitted is revoked. This is the single easiest way to
+   accidentally take away something a member paid for.
+
+## Run a discount
+1. \`coursesprout_save_coupon\`.
+2. \`coursesprout_get_order_form\` \u2192 order form id.
+3. \`coursesprout_set_order_form_coupon\`.
+4. Optionally \`coursesprout_save_scarcity_settings\` to add a countdown.
+
+## Sell on instalments
+1. \`coursesprout_save_payment_plan\` \u2014 type \`payment_plan\` with
+   \`no_of_payment\`, or \`subscription\` for open-ended.
+2. \`coursesprout_save_pricing_option\` with that \`payment_plan_id\`.
+
+## Message me
+---
+FILE package/dist/server.js KEY /member/update-access
+\u2014 courses, pods and pricing options. Anything you leave out is revoked. Read the member first with coursesprout_get_member and send the full set you want them to keep, or you will silently remove access someone paid for.",
+      inputSchema: { id: memberId(), ...accessFields },
+      action: "replace a member's access, revoking anything omitted",
+      confirmSchema: z13.literal(true).describe("Must be true. Omitted courses, pods and options are revoked.")
+    },
+    (args) => client.post("/member/update-access", args)
+  );
+  tool(
+    server,
+    "coursesprout_archive_member",
+    {
+      title: "Archive a member",
+      description: "Archives a member, removing them from the active roster while keeping their record. The reversible alternative to deleting.",
+      inputSchema: { id: memberId() }
+    },
+    ({ id }) => client.get(`/member/archive/${id}`)
+  );
+  tool(
+    server,
+    "coursesprout_set_member_admin",
+    {
+      title: "Make a member an admin",
+      description: "Toggles a member's admin flag inside the pod. Admins can moderate community content.",
+      inputSchema: { id: memberId() }
+    },
+    ({ id }) => client.get(`/member/mark-as-admin/${id}`)
+  );
+  guardedTool(
+    server,
+    "coursesprout_reset_member_password",
+    {
+      title: "Reset a member password",
+      description: "Generates a new password for a member and emails it to them. Their current password stops working immediately.",
+      in
+---
+FILE package/dist/server.js KEY /member/add
+ing().optional(),
+        phone: z13.string().optional(),
+        password: z13.string().optional().describe("Ignored when the pricing option sets a default password."),
+        gc_tag_id: z13.union([z13.string(), z13.number()]).optional(),
+        ...accessFields
+      },
+      action: "enrol a member, which creates a login and emails them",
+      confirmSchema: z13.literal(true).describe("Must be true. This creates an account and sends a real welcome email.")
+    },
+    (args) => client.post("/member/add", args)
+  );
+  tool(
+    server,
+    "coursesprout_update_member",
+    {
+      title: "Update member details",
+      description: "Updates a member's name, phone, status or password. Not their email \u2014 use coursesprout_change_member_email for that, since it moves their login.",
+      inputSchema: {
+        id: memberId(),
+        first_name: z13.string().max(255).optional(),
+        last_name: z13.string().max(255).optional(),
+        phone: z13.string().optional(),
+        status: z13.union([z13.string(), z13.number(), z13.boolean()]).optional(),
+        password: z13.string().optional().describe("Sets a new password. The member is not notified by this call.")
+      }
+    },
+    (args) => client.post("/member/update-user-account-data", args)
+  );
+  guardedTool(
+    server,
+    "coursesprout_change_member_email",
+    {
+      title: "Change a member email",
+      description: "Moves a member to a new email address. This c
+---
+FILE package/dist/server.js KEY /member/list
+le"),
+          (row) => `pod \xB7 ${text(row, "sub_domain")}`
+        );
+      case "pricing_option": {
+        const pages = await Promise.all(
+          PRICING_TYPES.map((type) => client.get("/pricing-option/list", { type }))
+        );
+        return matched(
+          pages.flatMap(asArray),
+          (row) => text(row, "name"),
+          (row) => `pricing option \xB7 ${text(row, "type")}`
+        );
+      }
+      case "member":
+        return matched(
+          asArray(await client.post("/member/list", { search: query })),
+          (row) => [text(row, "first_name"), text(row, "last_name")].join(" ").trim(),
+          (row) => `member \xB7 ${text(row.user ?? {}, "email")}`
+        );
+      case "product":
+        return matched(
+          asArray(await client.get("/products/list")),
+          (row) => text(row, "name"),
+          () => "product"
+        );
+      case "collection":
+        return matched(
+          asArray(await client.get("/collection/list")),
+          (row) => text(row, "name"),
+          () => "collection"
+        );
+    }
+  }
+  server.registerTool(
+    "coursesprout_find",
+    {
+      title: "Find something by name",
+      description: 'Turns a name into an id. USE THIS FIRST whenever the user refers to something by name rather than number \u2014 "my copywriting course", "the Titanium pod", "Sarah". Searches courses, pods, pricing options, members, products and collections. If the name matches nothi
+---
+FILE package/dist/server.js KEY /member/list
+ in data.data with page metadata alongside. When you already have an email, coursesprout_get_member is one call instead of paging.",
+      inputSchema: {
+        search: z13.string().optional().describe("Matches first name, last name or email."),
+        type: z13.string().optional().describe('Narrows by enrolment kind, e.g. "course", "pod" or "all".'),
+        pricing_option_id: pricingOptionId().optional().describe("Only members holding this option.")
+      }
+    },
+    (args) => client.post("/member/list", args)
+  );
+  tool(
+    server,
+    "coursesprout_get_member",
+    {
+      title: "Get member by email",
+      description: "Resolves one member by email, with their courses, pods and pricing options. Scoped to this account \u2014 an email belonging to another creator's roster is not found.",
+      inputSchema: { email: z13.string().email() }
+    },
+    ({ email }) => client.get(`/member/get/${encodeURIComponent(email)}`)
+  );
+  guardedTool(
+    server,
+    "coursesprout_add_member",
+    {
+      title: "Add member",
+      description: `Enrols a person and grants them access \u2014 "add someone", "give X access", "sign them up". SIDE EFFECTS: creates a login if the email has none, and sends the configured welcome/access email to a real inbox. A pricing option's default_password overrides any password passed here. An email that already exists gains the new access rather than being duplicated.`,
+      inputSchema: {
+        e
+---
+FILE package/dist/server.js KEY /member/get
+d().optional().describe("Only members holding this option.")
+      }
+    },
+    (args) => client.post("/member/list", args)
+  );
+  tool(
+    server,
+    "coursesprout_get_member",
+    {
+      title: "Get member by email",
+      description: "Resolves one member by email, with their courses, pods and pricing options. Scoped to this account \u2014 an email belonging to another creator's roster is not found.",
+      inputSchema: { email: z13.string().email() }
+    },
+    ({ email }) => client.get(`/member/get/${encodeURIComponent(email)}`)
+  );
+  guardedTool(
+    server,
+    "coursesprout_add_member",
+    {
+      title: "Add member",
+      description: `Enrols a person and grants them access \u2014 "add someone", "give X access", "sign them up". SIDE EFFECTS: creates a login if the email has none, and sends the configured welcome/access email to a real inbox. A pricing option's default_password overrides any password passed here. An email that already exists gains the new access rather than being duplicated.`,
+      inputSchema: {
+        email: z13.string().email(),
+        first_name: z13.string().min(1).max(255),
+        last_name: z13.string().optional(),
+        phone: z13.string().optional(),
+        password: z13.string().optional().describe("Ignored when the pricing option sets a default password."),
+        gc_tag_id: z13.union([z13.string(), z13.number()]).optional(),
+        ...accessFields
+      },
+      action: "enro
 ---
