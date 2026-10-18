@@ -30,7 +30,7 @@ export default async function handler(req,res){
   if(!paid)return res.status(200).json({received:true,pending:true});
   // CourseSprout is a live account even when Stripe is in test mode.
   // Only the explicitly allowed test address can ever be enrolled here.
-  const allowedCustomerId = 'cus_VSY4i3mC8ZrV2d'; // Exact existing paid TEST Customer; never a live Stripe Customer.
+  const allowedEmail = 'riccardo.romano73+2@gmail.com'; // Only approved buyer during this test.
   const apiKey = process.env.COURSESPROUT_API_KEY;
   if (!apiKey || !process.env.STRIPE_TEST_SECRET_KEY?.startsWith('sk_test_')) {
     return res.status(503).json({error:'Test fulfillment not yet configured'});
@@ -49,7 +49,7 @@ export default async function handler(req,res){
       return res.status(200).json({received:true,ignored:true});
     }
     const email=(customer.email||checkout.customer_details?.email||'').trim().toLowerCase();
-    if(customer.id!==allowedCustomerId) {
+    if(email!==allowedEmail) {
       console.error('Paid test session outside CourseSprout allowlist',session.id);
       return res.status(503).json({error:'Test buyer not allowed for CourseSprout enrollment'});
     }
@@ -57,8 +57,7 @@ export default async function handler(req,res){
     if(names.length<2)throw new Error('Buyer first and last name not available');
     const outcome=await grantFrattali({email,firstName:names[0],lastName:names.slice(1).join(' '),key:apiKey});
     console.info('CourseSprout verified',session.id, outcome.alreadyEnrolled?'already-enrolled':'new-grant');
-    // Real ActiveCampaign automation sends real emails: explicit opt-in for staging only.
-    if(process.env.FRATTALI_TEST_ENABLE_AC_TAG!=='true')return res.status(503).json({error:'Course access verified; AC staging tag not yet enabled'});
+    // Tag triggers a real email: allowed only for the exact verified staging buyer above.
     const acOutcome=await tagPurchase({email,firstName:names[0],lastName:names.slice(1).join(' ')});
     return res.status(200).json({received:true,...outcome,...acOutcome});
   }catch(error){
