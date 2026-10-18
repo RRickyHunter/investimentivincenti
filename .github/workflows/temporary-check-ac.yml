@@ -1,0 +1,25 @@
+name: Check ActiveCampaign configuration
+on:
+  push:
+    paths:
+      - .github/workflows/temporary-check-ac.yml
+permissions:
+  contents: write
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          for i in 1 2 3; do
+            code=$(curl -sS --max-time 15 -o /tmp/ac-response.json -w '%{http_code}' https://www.investimentivincenti.com/api/temporary-ac-check)
+            echo "Status: $code"
+            if [[ "$code" == "200" ]]; then break; fi
+            sleep 5
+          done
+          cp /tmp/ac-response.json automazioni/ac-connection-result.json
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add automazioni/ac-connection-result.json
+          git commit -m "Record ActiveCampaign connectivity check result" || exit 0
+          git push
