@@ -2,6 +2,7 @@
 // Requires STRIPE_TEST_WEBHOOK_SECRET configured on Vercel and a durable fulfillment store before production.
 import crypto from 'node:crypto';
 import {grantFrattali} from './lib/coursesprout-frattali.js';
+import {tagPurchase} from './lib/activecampaign-frattali.js';
 export const config = { api: { bodyParser: false } };
 const okTypes = new Set(['checkout.session.completed','checkout.session.async_payment_succeeded','checkout.session.async_payment_failed']);
 async function rawBody(req) {const chunks=[];for await (const chunk of req) chunks.push(typeof chunk==='string'?Buffer.from(chunk):chunk);return Buffer.concat(chunks);}
@@ -56,7 +57,10 @@ export default async function handler(req,res){
     if(names.length<2)throw new Error('Buyer first and last name not available');
     const outcome=await grantFrattali({email,firstName:names[0],lastName:names.slice(1).join(' '),key:apiKey});
     console.info('CourseSprout verified',session.id, outcome.alreadyEnrolled?'already-enrolled':'new-grant');
-    return res.status(200).json({received:true,...outcome});
+    // Real ActiveCampaign automation sends real emails: explicit opt-in for staging only.
+    if(process.env.FRATTALI_TEST_ENABLE_AC_TAG!=='true')return res.status(503).json({error:'Course access verified; AC staging tag not yet enabled'});
+    const acOutcome=await tagPurchase({email,firstName:names[0],lastName:names.slice(1).join(' ')});
+    return res.status(200).json({received:true,...outcome,...acOutcome});
   }catch(error){
     console.error('CourseSprout test fulfillment failed:',error.message);
     return res.status(503).json({error:'Test enrollment failed; retry later'});
