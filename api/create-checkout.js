@@ -21,6 +21,8 @@ export default async function handler(req, res) {
     return res.status(400).json({error:'Inserisci nome, cognome e un indirizzo email valido'});
   const safeEmail = email.trim().toLowerCase().slice(0,254);
   const safeName = (String(firstName)+' '+String(lastName)).trim().slice(0,200);
+  // One approved staging buyer; keep all other addresses away from real CourseSprout and AC.
+  if(safeEmail !== 'riccardo.romano73+2@gmail.com') return res.status(403).json({error:'Checkout riservato al test autorizzato'});
   try {
     const lookup = await stripe('customers?'+new URLSearchParams({email:safeEmail,limit:'10'}),key,null,'GET');
     // An email address alone does not prove identity: test-only matching, review before production.
