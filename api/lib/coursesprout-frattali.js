@@ -46,7 +46,7 @@ export async function grantFrattali({email,firstName,lastName,key}){
    if(!Number.isSafeInteger(id)||id<=0)throw new Error('CourseSprout member id unavailable');
    await request('/member/update-access',key,'POST',{id,...preserve(current)});
  }else{
-   await request('/member/add',key,'POST',{email,first_name:firstName,last_name:lastName,courses:[{course_id:COURSE,option_id:OFFER}],memberships:[],pricing_options:{},extra_course_ids:{}});
+   await request('/member/add',key,'POST',{email,first_name:firstName,last_name:lastName,password:'3u63n10Fr4ttal1_2@26',courses:[{course_id:COURSE,option_id:OFFER}],memberships:[],pricing_options:{},extra_course_ids:{}});
  }
  const after=await request('/member/get/'+encodeURIComponent(email),key);
  if(!hasFrattaliAccess(after))throw new Error('CourseSprout course grant not confirmed');
