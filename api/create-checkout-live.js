@@ -21,7 +21,7 @@ export default async function handler(req,res){
     'line_items[0][price]':PRICE,'line_items[0][quantity]':'1','payment_method_types[0]':'card',
     customer_email:cleanEmail,
     success_url:DOMAIN+'/tyfrat/?session_id={CHECKOUT_SESSION_ID}',
-    cancel_url:DOMAIN+'/ckoutfrat/',
+    cancel_url:DOMAIN+'/ckoutfrat-live/',
     'metadata[event_key]':'frattali_2026_10','metadata[environment]':'live',
     'metadata[first_name]':String(firstName).trim().slice(0,100),
     'metadata[last_name]':String(lastName).trim().slice(0,100)
