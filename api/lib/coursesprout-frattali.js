@@ -6,7 +6,10 @@ async function request(path,key,method='GET',body){
  const json=await response.json().catch(()=>null);
  if(!response.ok || json?.status===false) {
    if(response.status===404 || (method==='GET' && json?.message==='Data not found.'))return null;
-   throw new Error('CourseSprout request '+path+' failed with '+response.status);
+   // Surface validation diagnostics without logging submitted email, password or API key.
+   const validation=json?.errors && typeof json.errors==='object' ? Object.entries(json.errors).map(([field,details])=>field+': '+(Array.isArray(details)?details.join('; '):String(details))).join(' | ').slice(0,900) : '';
+   const reason=validation || (typeof json?.message==='string' ? json.message.slice(0,350) : 'no API details');
+   throw new Error('CourseSprout request '+path+' failed with '+response.status+'; '+reason);
  }
  return json?.data??json;
 }
