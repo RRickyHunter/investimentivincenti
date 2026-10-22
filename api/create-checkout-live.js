@@ -11,7 +11,7 @@ export default async function handler(req,res){
  const key=process.env.STRIPE_LIVE_SECRET_KEY?.trim();
  if(process.env.FRATTALI_LIVE_ENABLED!=='true'||!key?.startsWith('sk_live_')||!process.env.STRIPE_LIVE_WEBHOOK_SECRET?.trim().startsWith('whsec_')) {
   console.error('Frattali checkout config check failed',{enabled:process.env.FRATTALI_LIVE_ENABLED==='true',secretFormat:key?.startsWith('sk_live_')||false,webhookSecretFormat:process.env.STRIPE_LIVE_WEBHOOK_SECRET?.trim().startsWith('whsec_')||false});
-  return res.status(503).json({error:'Vendite non ancora abilitate',config_check:{enabled:process.env.FRATTALI_LIVE_ENABLED==='true',secret_format:key?.startsWith('sk_live_')||false,webhook_format:process.env.STRIPE_LIVE_WEBHOOK_SECRET?.trim().startsWith('whsec_')||false}});
+  return res.status(503).json({error:'Vendite non ancora abilitate',config_check:{enabled:process.env.FRATTALI_LIVE_ENABLED==='true',secret_format:key?.startsWith('sk_live_')||false,secret_present:!!key,secret_length_range:!key?'empty':key.length<20?'short':key.length<50?'medium':'long',secret_kind:!key?'missing':key.startsWith('pk_live_')?'publishable':key.startsWith('rk_live_')?'restricted':key.startsWith('sk_test_')?'test':key.startsWith('sk_live_')?'live':key.startsWith('sk_')?'other_secret':'unrecognized',webhook_format:process.env.STRIPE_LIVE_WEBHOOK_SECRET?.trim().startsWith('whsec_')||false}});
  }
  const {email,firstName,lastName}=req.body||{};
  if(typeof email!=='string'||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!String(firstName||'').trim()||!String(lastName||'').trim())
