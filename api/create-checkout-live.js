@@ -8,9 +8,11 @@ async function stripe(path,key,data,method='POST'){
 export default async function handler(req,res){
  res.setHeader('Cache-Control','no-store');
  if(req.method!=='POST')return res.status(405).json({error:'Metodo non consentito'});
- const key=process.env.STRIPE_LIVE_SECRET_KEY;
- if(process.env.FRATTALI_LIVE_ENABLED!=='true'||!key?.startsWith('sk_live_')||!process.env.STRIPE_LIVE_WEBHOOK_SECRET?.startsWith('whsec_'))
-  return res.status(503).json({error:'Vendite non ancora abilitate'});
+ const key=process.env.STRIPE_LIVE_SECRET_KEY?.trim();
+ if(process.env.FRATTALI_LIVE_ENABLED!=='true'||!key?.startsWith('sk_live_')||!process.env.STRIPE_LIVE_WEBHOOK_SECRET?.trim().startsWith('whsec_')) {
+  console.error('Frattali checkout config check failed',{enabled:process.env.FRATTALI_LIVE_ENABLED==='true',secretFormat:key?.startsWith('sk_live_')||false,webhookSecretFormat:process.env.STRIPE_LIVE_WEBHOOK_SECRET?.trim().startsWith('whsec_')||false});
+  return res.status(503).json({error:'Vendite non ancora abilitate',config_check:{enabled:process.env.FRATTALI_LIVE_ENABLED==='true',secret_format:key?.startsWith('sk_live_')||false,webhook_format:process.env.STRIPE_LIVE_WEBHOOK_SECRET?.trim().startsWith('whsec_')||false}});
+ }
  const {email,firstName,lastName}=req.body||{};
  if(typeof email!=='string'||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!String(firstName||'').trim()||!String(lastName||'').trim())
   return res.status(400).json({error:'Inserisci nome, cognome e email validi'});
