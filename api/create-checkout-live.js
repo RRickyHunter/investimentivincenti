@@ -3,7 +3,7 @@ const DOMAIN='https://www.investimentivincenti.com';
 const PRICE='price_1USkpmRjl8noNUUHCoRsdmZq';
 async function stripe(path,key,data,method='POST'){
  const r=await fetch('https://api.stripe.com/v1/'+path,{method,headers:{Authorization:'Bearer '+key,...(data?{'Content-Type':'application/x-www-form-urlencoded'}:{})},...(data?{body:new URLSearchParams(data).toString()}:{})});
- const j=await r.json();if(!r.ok)throw Error('Stripe API '+r.status);return j;
+ const j=await r.json();if(!r.ok){const problem=j?.error||{};const err=new Error('Stripe API '+r.status+' '+(problem.code||problem.type||'unknown')+' '+(problem.param||''));err.publicCode=problem.code||problem.type||'stripe_error';err.publicParam=problem.param||null;throw err;}return j;
 }
 export default async function handler(req,res){
  res.setHeader('Cache-Control','no-store');
@@ -27,5 +27,5 @@ export default async function handler(req,res){
     'metadata[last_name]':String(lastName).trim().slice(0,100)
   });
   return res.status(200).json({url:session.url});
- }catch(e){console.error('Live checkout session creation failed:',e.message);return res.status(502).json({error:'Checkout temporaneamente non disponibile'});}
+ }catch(e){console.error('Live checkout session creation failed:',e.message);return res.status(502).json({error:'Checkout temporaneamente non disponibile',stripe_code:e.publicCode||'request_failed',stripe_param:e.publicParam||undefined});}
 }
